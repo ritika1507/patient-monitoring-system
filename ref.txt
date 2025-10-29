@@ -1,0 +1,23 @@
+## 📝 Quick Reference Card (Save This!)
+```
+SERVICE URLS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Kafka UI       → http://localhost:8080
+Grafana        → http://localhost:3001 (admin/admin_2024)
+Prometheus     → http://localhost:9090
+
+CONNECTION STRINGS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Kafka          → localhost:9093
+PostgreSQL     → jdbc:postgresql://localhost:5432/patient_monitoring
+                 (monitoruser / monitor_pass_2024)
+MongoDB        → mongodb://mongouser:mongo_pass_2024@localhost:27017/vitals_db
+Redis          → redis://localhost:6379 (password: redis_pass_2024)
+
+USEFUL COMMANDS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Start          → docker-compose up -d
+Stop           → docker-compose down
+Logs           → docker-compose logs -f [service_name]
+Restart        → docker-compose restart [service_name]
+Status         → docker-compose ps

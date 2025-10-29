@@ -1,0 +1,369 @@
+# ============================================
+# NETWORKS - Isolates our services from other Docker containers
+# ============================================
+networks:
+  monitoring-network:
+    driver: bridge # Default network type, allows containers to communicate
+
+# ============================================
+# VOLUMES - Persistent storage (survives container restarts)
+# ============================================
+volumes:
+  postgres-data: # Stores PostgreSQL database files
+  mongodb-data: # Stores MongoDB collections
+  redis-data: # Stores Redis cache (optional, Redis can work in-memory only)
+  kafka-data: # Stores Kafka logs and topics
+  zookeeper-data: # Stores Zookeeper metadata
+  zookeeper-logs: # Stores Zookeeper logs
+  prometheus-data: # Stores Prometheus metrics history
+  grafana-data: # Stores Grafana dashboards and settings
+
+# ============================================
+# SERVICES - All our infrastructure components
+# ============================================
+services:
+  # ==========================================
+  # ZOOKEEPER - Kafka's coordination service
+  # ==========================================
+  # What it does: Manages Kafka cluster metadata, leader election, and configuration
+  # Why needed: Kafka requires it to track brokers, topics, and partitions
+  # Port: 2181 (standard Zookeeper port)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0 # Official Confluent image
+    container_name: zookeeper
+    networks:
+      - monitoring-network
+    ports:
+      - "2181:2181" # Expose to host machine (for debugging tools)
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181 # Port clients connect to
+      ZOOKEEPER_TICK_TIME: 2000 # Basic time unit in milliseconds (heartbeat interval)
+      ZOOKEEPER_SYNC_LIMIT: 5 # How many ticks can pass before timeout
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data # Persist Zookeeper state
+      - zookeeper-logs:/var/lib/zookeeper/log # Persist transaction logs
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"] # Check if port is open
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # KAFKA - Message broker (event streaming platform)
+  # ==========================================
+  # What it does: Handles all real-time event streaming (vitals, alerts)
+  # Why needed: Decouples services, ensures message durability, enables replay
+  # Port: 9092 (Kafka broker), 9093 (external access)
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy # Wait for Zookeeper to be ready
+    networks:
+      - monitoring-network
+    ports:
+      - "9092:9092" # Internal port (for Docker services)
+      - "9093:9093" # External port (for host machine/Spring Boot apps)
+    environment:
+      # Broker ID (unique identifier in Kafka cluster)
+      KAFKA_BROKER_ID: 1
+
+      # Zookeeper connection
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      # Listener configuration (CRITICAL - defines how clients connect)
+      # PLAINTEXT_INTERNAL: For communication between Docker containers
+      # PLAINTEXT_EXTERNAL: For Spring Boot apps running on host machine
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://kafka:9092,PLAINTEXT_EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+
+      # Topic defaults
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true" # Auto-create topics when first message sent
+      KAFKA_DELETE_TOPIC_ENABLE: "true" # Allow topic deletion (useful for dev)
+      KAFKA_NUM_PARTITIONS: 3 # Default partitions per topic (enables parallelism)
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1 # Only 1 broker, so replication = 1
+
+      # Performance tuning
+      KAFKA_LOG_RETENTION_HOURS: 168 # Keep messages for 7 days
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824 # 1GB log segment size
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 # Internal topic replication
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka-data:/var/lib/kafka/data # Persist Kafka messages and logs
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "kafka-broker-api-versions",
+          "--bootstrap-server",
+          "localhost:9092",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # ==========================================
+  # KAFKA UI - Web interface for Kafka management
+  # ==========================================
+  # What it does: Visual interface to view topics, messages, consumer groups
+  # Why needed: Makes debugging and monitoring Kafka much easier
+  # Port: 8080
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - monitoring-network
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: monitoring-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: "true" # Allow runtime configuration
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================
+  # POSTGRESQL - Relational database
+  # ==========================================
+  # What it does: Stores structured data (patients, alerts, alert_rules, notifications)
+  # Why needed: ACID transactions, complex queries, referential integrity
+  # Port: 5432
+  postgres:
+    image: postgres:15-alpine # Alpine = smaller image size
+    container_name: postgres
+    networks:
+      - monitoring-network
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: patient_monitoring # Database name
+      POSTGRES_USER: monitoruser # Username
+      POSTGRES_PASSWORD: monitor_pass_2024 # Password (change in production!)
+      POSTGRES_INITDB_ARGS: "-E UTF8" # UTF-8 encoding
+      PGDATA: /var/lib/postgresql/data/pgdata # Data directory
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Optional: Add init script to create tables on startup
+      - ./infrastructure/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitoruser -d patient_monitoring"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200" # Max simultaneous connections
+      - "-c"
+      - "shared_buffers=256MB" # Memory for caching
+      - "-c"
+      - "effective_cache_size=1GB" # Postgres's estimate of OS cache
+      - "-c"
+      - "work_mem=16MB" # Memory for query operations
+      - "-c"
+      - "maintenance_work_mem=128MB" # Memory for maintenance operations
+
+  # ==========================================
+  # MONGODB - NoSQL database (time-series)
+  # ==========================================
+  # What it does: Stores high-frequency vitals data (heart rate, BP every 2 seconds)
+  # Why needed: Optimized for time-series, better than SQL for IoT data
+  # Port: 27017
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    networks:
+      - monitoring-network
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongouser
+      MONGO_INITDB_ROOT_PASSWORD: mongo_pass_2024
+      MONGO_INITDB_DATABASE: vitals_db
+    volumes:
+      - mongodb-data:/data/db
+      # Optional: Init script to create time-series collection
+      - ./infrastructure/init-mongo.js:/docker-entrypoint-initdb.d/init.js
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command:
+      - "--wiredTigerCacheSizeGB"
+      - "0.5" # Limit cache size (adjust based on your machine)
+
+  # ==========================================
+  # REDIS - In-memory cache and pub/sub
+  # ==========================================
+  # What it does:
+  #   1. Cache latest patient vitals (fast reads)
+  #   2. Pub/Sub for real-time WebSocket updates
+  #   3. Distributed locks (prevent duplicate alerts)
+  # Why needed: Sub-millisecond latency, reduces database load
+  # Port: 6379
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - monitoring-network
+    ports:
+      - "6379:6379"
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes" # Enable persistence (AOF)
+      - "--appendfsync"
+      - "everysec" # Sync to disk every second
+      - "--maxmemory"
+      - "512mb" # Max memory usage
+      - "--maxmemory-policy"
+      - "allkeys-lru" # Eviction policy: Least Recently Used
+      - "--requirepass"
+      - "redis_pass_2024" # Password protection
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # PROMETHEUS - Metrics collection and storage
+  # ==========================================
+  # What it does: Scrapes metrics from all services, stores time-series data
+  # Why needed: System observability, performance monitoring, alerting
+  # Port: 9090
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    networks:
+      - monitoring-network
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./infrastructure/prometheus.yml:/etc/prometheus/prometheus.yml # Config file
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle" # Allow config reload via API
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================
+  # GRAFANA - Metrics visualization
+  # ==========================================
+  # What it does: Beautiful dashboards for Prometheus metrics
+  # Why needed: Visual monitoring, alerts, business metrics tracking
+  # Port: 3001 (avoiding conflict with React on 3000)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring-network
+    ports:
+      - "3001:3000" # Map container's 3000 to host's 3001
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin_2024
+      GF_INSTALL_PLUGINS: "" # Add plugins if needed (comma-separated)
+      GF_SERVER_ROOT_URL: http://localhost:3001
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # Optional: Pre-configured dashboards
+      # - ./infrastructure/grafana-dashboards:/etc/grafana/provisioning/dashboards
+      # - ./infrastructure/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================
+  # OPTIONAL: PGADMIN - PostgreSQL web UI
+  # ==========================================
+  # What it does: Web interface to manage PostgreSQL databases
+  # Why needed: Makes SQL queries and schema management easier
+  # Port: 5050
+  # Uncomment to enable
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: pgadmin
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - monitoring-network
+  #   ports:
+  #     - "5050:80"
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@monitoring.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin_2024
+  #     PGADMIN_CONFIG_SERVER_MODE: 'False'
+  #   volumes:
+  #     - pgadmin-data:/var/lib/pgadmin
+
+  # ==========================================
+  # OPTIONAL: MONGO EXPRESS - MongoDB web UI
+  # ==========================================
+  # What it does: Web interface to browse MongoDB collections
+  # Why needed: Easy to view time-series vitals data
+  # Port: 8081
+  # Uncomment to enable
+  # mongo-express:
+  #   image: mongo-express:latest
+  #   container_name: mongo-express
+  #   depends_on:
+  #     - mongodb
+  #   networks:
+  #     - monitoring-network
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     ME_CONFIG_MONGODB_ADMINUSERNAME: mongouser
+  #     ME_CONFIG_MONGODB_ADMINPASSWORD: mongo_pass_2024
+  #     ME_CONFIG_MONGODB_URL: mongodb://mongouser:mongo_pass_2024@mongodb:27017/
+  #     ME_CONFIG_BASICAUTH_USERNAME: admin
+  #     ME_CONFIG_BASICAUTH_PASSWORD: admin_2024
