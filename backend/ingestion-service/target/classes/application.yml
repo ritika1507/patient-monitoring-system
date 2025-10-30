@@ -1,0 +1,91 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: ingestion-service
+
+  devtools:
+    restart:
+      enabled: false
+
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9093
+    consumer:
+      group-id: ingestion-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+
+  # PostgreSQL Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/patient_monitoring
+    username: monitoruser
+    password: monitor_pass_2024
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  # MongoDB Configuration
+  data:
+    mongodb:
+      uri: mongodb://mongouser:mongo_pass_2024@localhost:27017/vitals_db
+      auto-index-creation: true
+
+  # Redis Configuration
+  redis:
+    host: localhost
+    port: 6379
+    password: redis_pass_2024
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 2
+    timeout: 3000ms
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    com.healthcare.ingestion: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.data.mongodb: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Custom Properties
+app:
+  kafka:
+    input-topic: patient-vitals
+    output-topic: vitals-processed
+  redis:
+    vitals-key-prefix: "patient:vitals:"
+    ttl-seconds: 3600

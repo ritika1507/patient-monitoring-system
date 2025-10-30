@@ -1,0 +1,7 @@
+/Users/ritikasharma/patient-monitoring-system/backend/device-simulator/src/main/java/com/healthcare/simulator/model/AnomalyType.java
+/Users/ritikasharma/patient-monitoring-system/backend/device-simulator/src/main/java/com/healthcare/simulator/model/VitalsData.java
+/Users/ritikasharma/patient-monitoring-system/backend/device-simulator/src/main/java/com/healthcare/simulator/DeviceSimulatorApplication.java
+/Users/ritikasharma/patient-monitoring-system/backend/device-simulator/src/main/java/com/healthcare/simulator/service/KafkaProducerService.java
+/Users/ritikasharma/patient-monitoring-system/backend/device-simulator/src/main/java/com/healthcare/simulator/config/KafkaConfig.java
+/Users/ritikasharma/patient-monitoring-system/backend/device-simulator/src/main/java/com/healthcare/simulator/controller/SimulatorController.java
+/Users/ritikasharma/patient-monitoring-system/backend/device-simulator/src/main/java/com/healthcare/simulator/service/VitalsSimulatorService.java

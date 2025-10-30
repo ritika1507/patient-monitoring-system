@@ -1,0 +1,48 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: device-simulator
+
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9093  # External Kafka port
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all  # Wait for all replicas to acknowledge
+      retries: 3
+      properties:
+        linger.ms: 10  # Batch messages for 10ms
+        compression.type: snappy  # Compress messages
+    
+# Actuator Configuration (for Prometheus metrics)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoint:
+    health:
+      show-details: always
+
+# Logging Configuration
+logging:
+  level:
+    com.healthcare.simulator: DEBUG
+    org.springframework.kafka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Custom Application Properties
+simulator:
+  vitals:
+    interval-min-ms: 2000  # Min interval between vitals (2 seconds)
+    interval-max-ms: 5000  # Max interval between vitals (5 seconds)
+  kafka:
+    topic: patient-vitals  # Kafka topic name

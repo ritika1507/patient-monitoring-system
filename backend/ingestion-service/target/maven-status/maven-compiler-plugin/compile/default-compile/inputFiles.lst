@@ -1,0 +1,13 @@
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/consumer/KafkaConsumerConfig.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/config/RedisConfig.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/repository/VitalsRepository.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/model/VitalsData.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/model/Patient.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/model/VitalsDocument.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/repository/PatientRepository.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/IngestionServiceApplication.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/service/VitalsIngestionService.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/controller/VitalsController.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/consumer/VitalsConsumer.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/service/RedisService.java
+/Users/ritikasharma/patient-monitoring-system/backend/ingestion-service/src/main/java/com/healthcare/ingestion/config/KafkaProducerConfig.java

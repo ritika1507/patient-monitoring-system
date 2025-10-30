@@ -1,0 +1,13 @@
+com/healthcare/ingestion/service/VitalsIngestionService.class
+com/healthcare/ingestion/service/RedisService.class
+com/healthcare/ingestion/model/VitalsData.class
+com/healthcare/ingestion/controller/VitalsController.class
+com/healthcare/ingestion/model/Patient.class
+com/healthcare/ingestion/repository/VitalsRepository.class
+com/healthcare/ingestion/model/Patient$PatientBuilder.class
+com/healthcare/ingestion/consumer/VitalsConsumer.class
+com/healthcare/ingestion/model/VitalsDocument$VitalsDocumentBuilder.class
+com/healthcare/ingestion/IngestionServiceApplication.class
+com/healthcare/ingestion/model/VitalsDocument.class
+com/healthcare/ingestion/repository/PatientRepository.class
+com/healthcare/ingestion/model/VitalsData$VitalsDataBuilder.class
